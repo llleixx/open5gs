@@ -55,6 +55,7 @@ typedef struct ogs_ipfw_rule_s {
         } dst;
     } port;
 
+    bool tos_traffic_class_presence;
     uint16_t tos_traffic_class;
     uint32_t security_parameter_index;
     uint32_t flow_label; /* 24bit */
@@ -108,6 +109,7 @@ typedef struct ogs_pf_content_s {
         uint8_t type;
         union {
             uint8_t proto;
+            struct { uint8_t value; uint8_t mask; } tos;
             struct {
                 uint32_t addr;
                 uint32_t mask;

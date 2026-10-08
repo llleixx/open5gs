@@ -798,7 +798,10 @@ void gsm_encode_qos_rule(
         qos_rule_code != OGS_NAS_QOS_CODE_MODIFY_EXISTING_QOS_RULE_AND_DELETE_PACKET_FILTERS &&
         qos_rule_code != OGS_NAS_QOS_CODE_MODIFY_EXISTING_QOS_RULE_WITHOUT_MODIFYING_PACKET_FILTERS)
     {
-        qos_rule->precedence = dl_pdr->precedence;
+        /* NAS precedence is independent of the unused-direction PDR fallback.
+         * A PFCP value of 65536 truncates to zero in this 8-bit NAS field. */
+        qos_rule->precedence = qos_flow->pcc_rule.id ?
+            qos_flow->pcc_rule.precedence : dl_pdr->precedence;
         qos_rule->flow.segregation = 0;
         qos_rule->flow.identifier = qos_flow->qfi;
     }

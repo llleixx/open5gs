@@ -547,7 +547,29 @@ int ogs_check_qos_conf(ogs_qos_t *qos);
 typedef struct ogs_flow_s {
     uint8_t direction;
     char *description;
+    bool tos_traffic_class_presence;
+    uint16_t tos_traffic_class; /* host order: value in high byte, mask in low */
 } ogs_flow_t;
+
+/* TS 29.212 / 29.512: exactly two hexadecimal octets, value then mask. */
+static inline int ogs_flow_parse_tos(const char *text, uint16_t *out)
+{
+    unsigned value = 0;
+    int i;
+    if (!text || strlen(text) != 4 || !out) return OGS_ERROR;
+    for (i = 0; i < 4; i++) {
+        unsigned n;
+        if (text[i] >= '0' && text[i] <= '9') n = text[i] - '0';
+        else if (text[i] >= 'a' && text[i] <= 'f') n = text[i] - 'a' + 10;
+        else if (text[i] >= 'A' && text[i] <= 'F') n = text[i] - 'A' + 10;
+        else return OGS_ERROR;
+        value = (value << 4) | n;
+    }
+    /* A zero mask silently widens a requested classification to all DSCPs. */
+    if (!(value & 0xff)) return OGS_ERROR;
+    *out = value;
+    return OGS_OK;
+}
 
 #define OGS_FLOW_FREE(__fLOW) \
     do { \
@@ -600,6 +622,10 @@ typedef struct ogs_pcc_rule_s {
         for (__iNDEX = 0; __iNDEX < (__sRC)->num_of_flow; __iNDEX++) { \
             (__dST)->flow[__iNDEX].direction = \
                 (__sRC)->flow[__iNDEX].direction; \
+            (__dST)->flow[__iNDEX].tos_traffic_class_presence = \
+                (__sRC)->flow[__iNDEX].tos_traffic_class_presence; \
+            (__dST)->flow[__iNDEX].tos_traffic_class = \
+                (__sRC)->flow[__iNDEX].tos_traffic_class; \
             (__dST)->flow[__iNDEX].description = \
                 ogs_strdup((__sRC)->flow[__iNDEX].description);  \
             ogs_assert((__dST)->flow[__iNDEX].description); \

@@ -1206,6 +1206,15 @@ int ogs_app_parse_session_conf(
                                             }
                                         }
                                     } else if (!strcmp(flow_key,
+                                                "tos_traffic_class")) {
+                                        if (ogs_flow_parse_tos(
+                                                ogs_yaml_iter_value(&flow_iter),
+                                                &flow->tos_traffic_class) != OGS_OK) {
+                                            ogs_error("Invalid tos_traffic_class; expected four hex digits and nonzero mask");
+                                            return OGS_ERROR;
+                                        }
+                                        flow->tos_traffic_class_presence = true;
+                                    } else if (!strcmp(flow_key,
                                         OGS_DESCRIPTION_STRING)) {
                                         const char *v =
                                             (char *)ogs_yaml_iter_value(

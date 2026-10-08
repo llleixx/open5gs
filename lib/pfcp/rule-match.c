@@ -348,6 +348,13 @@ ogs_pfcp_rule_t *ogs_pfcp_pdr_rule_find_by_packet(
 
         ipfw = &rule->ipfw;
         ogs_assert(ipfw);
+        if (ipfw->tos_traffic_class_presence) {
+            uint8_t actual = ip_v == 4 ? ip_h->ip_tos :
+                (be32toh(ip6_h->ip6_flow) >> 20) & 0xff;
+            uint8_t mask = ipfw->tos_traffic_class & 0xff;
+            uint8_t value = ipfw->tos_traffic_class >> 8;
+            if ((actual & mask) != (value & mask)) continue;
+        }
 
         ogs_trace("PROTO:%d SRC:%08x %08x %08x %08x",
                 proto, be32toh(src_addr[0]), be32toh(src_addr[1]),

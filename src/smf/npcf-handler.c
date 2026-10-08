@@ -25,7 +25,7 @@
 
 #include "npcf-handler.h"
 
-static void update_authorized_pcc_rule_and_qos(
+static bool update_authorized_pcc_rule_and_qos(
         smf_sess_t *sess, OpenAPI_sm_policy_decision_t *SmPolicyDecision)
 {
     OpenAPI_lnode_t *node = NULL, *node2 = NULL;
@@ -93,6 +93,21 @@ static void update_authorized_pcc_rule_and_qos(
         char *QosId = NULL;
         int i;
 
+        /* Validate the whole decision before replacing any existing policy. */
+        OpenAPI_list_for_each(SmPolicyDecision->pcc_rules, node) {
+            OpenAPI_map_t *map = node->data;
+            OpenAPI_pcc_rule_t *rule = map ? map->value : NULL;
+            if (!rule || !rule->flow_infos) continue;
+            OpenAPI_list_for_each(rule->flow_infos, node2) {
+                OpenAPI_flow_information_t *info = node2->data;
+                uint16_t value;
+                if (info && info->tos_traffic_class &&
+                    ogs_flow_parse_tos(info->tos_traffic_class, &value) != OGS_OK) {
+                    ogs_error("Invalid PCC tosTrafficClass");
+                    return false;
+                }
+            }
+        }
         for (i = 0; i < sess->policy.num_of_pcc_rule; i++)
             OGS_PCC_RULE_FREE(&sess->policy.pcc_rule[i]);
         sess->policy.num_of_pcc_rule = 0;
@@ -240,6 +255,13 @@ static void update_authorized_pcc_rule_and_qos(
                         ogs_strdup(FlowInformation->flow_description);
                     ogs_assert(flow->description);
 
+                    flow->tos_traffic_class_presence =
+                        FlowInformation->tos_traffic_class != NULL;
+                    flow->tos_traffic_class = 0;
+                    if (flow->tos_traffic_class_presence)
+                        ogs_assert(ogs_flow_parse_tos(
+                            FlowInformation->tos_traffic_class,
+                            &flow->tos_traffic_class) == OGS_OK);
                     pcc_rule->num_of_flow++;
                 }
             }
@@ -315,6 +337,7 @@ static void update_authorized_pcc_rule_and_qos(
             sess->policy.num_of_pcc_rule++;
         }
     }
+    return true;
 }
 
 bool smf_npcf_smpolicycontrol_handle_create(
@@ -525,7 +548,8 @@ bool smf_npcf_smpolicycontrol_handle_create(
     }
 
     /* Update authorized PCC rule & QoS */
-    update_authorized_pcc_rule_and_qos(sess, SmPolicyDecision);
+    if (!update_authorized_pcc_rule_and_qos(sess, SmPolicyDecision))
+        return false;
 
     /*********************************************************************
      * Send PFCP Session Establiashment Request to the UPF
@@ -785,7 +809,10 @@ bool smf_npcf_smpolicycontrol_handle_update_notify(
     }
 
     /* Update authorized PCC rule & QoS */
-    update_authorized_pcc_rule_and_qos(sess, SmPolicyDecision);
+    if (!update_authorized_pcc_rule_and_qos(sess, SmPolicyDecision)) {
+        strerror = ogs_strdup("Invalid PCC tosTrafficClass");
+        goto cleanup;
+    }
 
     ogs_assert(true == ogs_sbi_send_http_status_no_content(stream));
 

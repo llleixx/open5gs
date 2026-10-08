@@ -1533,6 +1533,11 @@ OpenAPI_pcc_rule_t *ogs_sbi_build_pcc_rule(
 
             ogs_assert(flow->description);
             FlowInformation->flow_description = flow->description;
+            if (flow->tos_traffic_class_presence) {
+                FlowInformation->tos_traffic_class =
+                    ogs_msprintf("%04x", flow->tos_traffic_class);
+                ogs_assert(FlowInformation->tos_traffic_class);
+            }
 
             OpenAPI_list_add(FlowInformationList, FlowInformation);
         }
@@ -1558,7 +1563,11 @@ void ogs_sbi_free_pcc_rule(OpenAPI_pcc_rule_t *PccRule)
     if (PccRule->flow_infos) {
         OpenAPI_list_for_each(PccRule->flow_infos, node) {
             FlowInformation = node->data;
-            if (FlowInformation) ogs_free(FlowInformation);
+            if (FlowInformation) {
+                if (FlowInformation->tos_traffic_class)
+                    ogs_free(FlowInformation->tos_traffic_class);
+                ogs_free(FlowInformation);
+            }
         }
         OpenAPI_list_free(PccRule->flow_infos);
     }

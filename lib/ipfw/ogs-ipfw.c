@@ -601,6 +601,13 @@ void ogs_pf_content_from_ipfw_rule(
         }
     }
 
+    if (rule->tos_traffic_class_presence) {
+        ogs_assert(j < OGS_MAX_NUM_OF_PACKET_FILTER_COMPONENT);
+        content->component[j].type = OGS_PACKET_FILTER_TOS_TRAFFIC_CLASS_TYPE;
+        content->component[j].tos.value = rule->tos_traffic_class >> 8;
+        content->component[j].tos.mask = rule->tos_traffic_class & 0xff;
+        j++; len += 3;
+    }
     content->num_of_component = j;
     content->length = len;
 }

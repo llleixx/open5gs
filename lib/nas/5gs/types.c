@@ -752,6 +752,11 @@ int ogs_nas_build_qos_rules(ogs_nas_qos_rules_t *rules,
                     length += sizeof(
                             target.pf[j].content.component[k].ipv6_mask.mask);
                     break;
+                case OGS_PACKET_FILTER_TOS_TRAFFIC_CLASS_TYPE:
+                    ogs_assert(length + 2 <= OGS_NAS_MAX_QOS_RULES_LEN);
+                    buffer[length++] = target.pf[j].content.component[k].tos.value;
+                    buffer[length++] = target.pf[j].content.component[k].tos.mask;
+                    break;
                 case OGS_PACKET_FILTER_SINGLE_LOCAL_PORT_TYPE:
                 case OGS_PACKET_FILTER_SINGLE_REMOTE_PORT_TYPE:
                     ogs_assert(length +
@@ -961,6 +966,11 @@ static int parse_qos_rules_packet_filter_list(
                     buffer+size+len,
                     sizeof(rule->pf[i].content.component[j].ipv6_mask.mask));
                 len += sizeof(rule->pf[i].content.component[j].ipv6_mask.mask);
+                break;
+            case OGS_PACKET_FILTER_TOS_TRAFFIC_CLASS_TYPE:
+                CHECK_PF_CONTENT_ROOM(2);
+                rule->pf[i].content.component[j].tos.value = buffer[size+len++];
+                rule->pf[i].content.component[j].tos.mask = buffer[size+len++];
                 break;
             case OGS_PACKET_FILTER_SINGLE_LOCAL_PORT_TYPE:
             case OGS_PACKET_FILTER_SINGLE_REMOTE_PORT_TYPE:

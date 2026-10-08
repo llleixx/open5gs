@@ -209,7 +209,7 @@ int16_t ogs_pfcp_parse_sdf_filter(
         memcpy(&filter->tos_traffic_class,
                 (unsigned char *)octet->data + size,
                 sizeof(filter->tos_traffic_class));
-        filter->tos_traffic_class = be32toh(filter->tos_traffic_class);
+        filter->tos_traffic_class = be16toh(filter->tos_traffic_class);
         size += sizeof(filter->tos_traffic_class);
     }
 

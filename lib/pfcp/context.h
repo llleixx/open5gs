@@ -210,6 +210,7 @@ typedef struct ogs_pfcp_pdr_s {
             uint8_t flags;
         };
         char *description;
+        uint16_t tos_traffic_class;
         uint32_t sdf_filter_id;
     } flow[OGS_MAX_NUM_OF_FLOW_IN_PDR];;
 

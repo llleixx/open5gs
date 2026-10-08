@@ -3076,22 +3076,36 @@ void smf_bearer_tft_update(smf_bearer_t *bearer)
 
     dl_pdr->num_of_flow = 0;
     ul_pdr->num_of_flow = 0;
+    memset(dl_pdr->flow, 0, sizeof(dl_pdr->flow));
+    memset(ul_pdr->flow, 0, sizeof(ul_pdr->flow));
 
     ogs_list_for_each(&bearer->pf_list, pf) {
         if (pf->direction == OGS_FLOW_DOWNLINK_ONLY) {
             dl_pdr->flow[dl_pdr->num_of_flow].fd = 1;
             dl_pdr->flow[dl_pdr->num_of_flow].description =
                 pf->flow_description;
+            dl_pdr->flow[dl_pdr->num_of_flow].ttc =
+                pf->ipfw_rule.tos_traffic_class_presence;
+            dl_pdr->flow[dl_pdr->num_of_flow].tos_traffic_class =
+                pf->ipfw_rule.tos_traffic_class;
             dl_pdr->num_of_flow++;
         } else if (pf->direction == OGS_FLOW_UPLINK_ONLY) {
             ul_pdr->flow[ul_pdr->num_of_flow].fd = 1;
             ul_pdr->flow[ul_pdr->num_of_flow].description =
                 pf->flow_description;
+            ul_pdr->flow[ul_pdr->num_of_flow].ttc =
+                pf->ipfw_rule.tos_traffic_class_presence;
+            ul_pdr->flow[ul_pdr->num_of_flow].tos_traffic_class =
+                pf->ipfw_rule.tos_traffic_class;
             ul_pdr->num_of_flow++;
         } else if (pf->direction == OGS_FLOW_BIDIRECTIONAL) {
             dl_pdr->flow[dl_pdr->num_of_flow].fd = 1;
             dl_pdr->flow[dl_pdr->num_of_flow].description =
                 pf->flow_description;
+            dl_pdr->flow[dl_pdr->num_of_flow].ttc =
+                pf->ipfw_rule.tos_traffic_class_presence;
+            dl_pdr->flow[dl_pdr->num_of_flow].tos_traffic_class =
+                pf->ipfw_rule.tos_traffic_class;
             dl_pdr->flow[dl_pdr->num_of_flow].bid = 1;
             dl_pdr->flow[dl_pdr->num_of_flow].sdf_filter_id = pf->sdf_filter_id;
             dl_pdr->num_of_flow++;
@@ -3102,6 +3116,14 @@ void smf_bearer_tft_update(smf_bearer_t *bearer)
             ogs_fatal("Unsupported direction [%d]", pf->direction);
             ogs_assert_if_reached();
         }
+    }
+    /* An unfiltered dedicated downlink PDR must not capture default traffic.
+     * Keep it lower priority than the default PDR for UL-only policies. */
+    if (bearer->qfi && bearer->pcc_rule.id) {
+        dl_pdr->precedence = dl_pdr->num_of_flow ? bearer->pcc_rule.precedence :
+            OGS_PFCP_DEFAULT_PDR_PRECEDENCE + 1;
+        ul_pdr->precedence = ul_pdr->num_of_flow ? bearer->pcc_rule.precedence :
+            OGS_PFCP_DEFAULT_PDR_PRECEDENCE + 1;
     }
 }
 
@@ -3261,12 +3283,15 @@ smf_pf_t *smf_pf_find_by_identifier(
 }
 
 smf_pf_t *smf_pf_find_by_flow(
-    smf_bearer_t *bearer, uint8_t direction, char *flow_description)
+    smf_bearer_t *bearer, uint8_t direction, char *flow_description,
+    bool tos_presence, uint16_t tos)
 {
     smf_pf_t *pf = NULL;
 
     ogs_list_for_each(&bearer->pf_list, pf) {
         if ((pf->direction == direction) &&
+            pf->ipfw_rule.tos_traffic_class_presence == tos_presence &&
+            (!tos_presence || pf->ipfw_rule.tos_traffic_class == tos) &&
             (!strcmp(pf->flow_description, flow_description))) {
             return pf;
         }

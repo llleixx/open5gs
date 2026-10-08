@@ -609,6 +609,10 @@ ogs_pfcp_pdr_t *ogs_pfcp_handle_create_pdr(ogs_pfcp_sess_t *sess,
             if (pdr->src_if == OGS_PFCP_INTERFACE_ACCESS)
                 ogs_ipfw_rule_swap(&rule->ipfw);
         }
+        if (sdf_filter.ttc) {
+            rule->ipfw.tos_traffic_class_presence = true;
+            rule->ipfw.tos_traffic_class = sdf_filter.tos_traffic_class;
+        }
     }
 
     if (pdr->dnn) {
@@ -998,6 +1002,10 @@ ogs_pfcp_pdr_t *ogs_pfcp_handle_update_pdr(ogs_pfcp_sess_t *sess,
                 /* Uplink data flow */
                 if (pdr->src_if == OGS_PFCP_INTERFACE_ACCESS)
                     ogs_ipfw_rule_swap(&rule->ipfw);
+            }
+            if (sdf_filter.ttc) {
+                rule->ipfw.tos_traffic_class_presence = true;
+                rule->ipfw.tos_traffic_class = sdf_filter.tos_traffic_class;
             }
         }
 

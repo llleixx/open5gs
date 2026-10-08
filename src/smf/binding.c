@@ -267,7 +267,8 @@ void smf_bearer_binding(smf_sess_t *sess)
                  * duplicated flows are not added
                  */
                 if (smf_pf_find_by_flow(
-                    bearer, flow->direction, flow->description) != NULL) {
+                    bearer, flow->direction, flow->description,
+                    flow->tos_traffic_class_presence, flow->tos_traffic_class) != NULL) {
                     continue;
                 }
 
@@ -306,6 +307,8 @@ void smf_bearer_binding(smf_sess_t *sess)
  */
                 if (flow->direction == OGS_FLOW_UPLINK_ONLY)
                     ogs_ipfw_rule_swap(&pf->ipfw_rule);
+                pf->ipfw_rule.tos_traffic_class_presence = flow->tos_traffic_class_presence;
+                pf->ipfw_rule.tos_traffic_class = flow->tos_traffic_class;
 
                 if (rv != OGS_OK) {
                     ogs_error("Invalid Flow-Description[%s]",
@@ -516,6 +519,7 @@ void smf_qos_flow_binding(smf_sess_t *sess)
 
             bool qos_flow_created = false;
             bool qos_presence = false;
+            bool replace_filters = false;
 
             qos_flow = smf_qos_flow_find_by_pcc_rule_id(sess, pcc_rule->id);
             if (!qos_flow) {
@@ -576,6 +580,7 @@ void smf_qos_flow_binding(smf_sess_t *sess)
                     ul_pdr->f_teid.teid = sess->local_ul_teid;
                 }
 
+                qos_flow->pcc_rule.precedence = pcc_rule->precedence;
                 qos_flow->pcc_rule.id = ogs_strdup(pcc_rule->id);
                 ogs_assert(qos_flow->pcc_rule.id);
 
@@ -626,6 +631,29 @@ void smf_qos_flow_binding(smf_sess_t *sess)
          * EPC: OGS_GTP2_TFT_CODE_ADD_PACKET_FILTERS_TO_EXISTING_TFT
          * 5GC: OGS_NAS_QOS_CODE_MODIFY_EXISTING_QOS_RULE_AND_ADD_PACKET_FILTERS
          */
+            /* DSCP policy changes replace the filter set, otherwise an old
+             * wider filter could continue to match after an update. */
+            if (!qos_flow_created) {
+                bool has_tos = false, changed = false;
+                smf_pf_t *existing;
+                ogs_list_for_each(&qos_flow->pf_list, existing)
+                    if (existing->ipfw_rule.tos_traffic_class_presence)
+                        has_tos = true;
+                for (j = 0; j < pcc_rule->num_of_flow; j++) {
+                    ogs_flow_t *flow = &pcc_rule->flow[j];
+                    if (flow->tos_traffic_class_presence) has_tos = true;
+                    if (!smf_pf_find_by_flow(qos_flow, flow->direction,
+                            flow->description, flow->tos_traffic_class_presence,
+                            flow->tos_traffic_class)) changed = true;
+                }
+                if (ogs_list_count(&qos_flow->pf_list) != pcc_rule->num_of_flow)
+                    changed = true;
+                if (has_tos && changed && pcc_rule->num_of_flow) {
+                    smf_pf_remove_all(qos_flow);
+                    replace_filters = true;
+                }
+                qos_flow->pcc_rule.precedence = pcc_rule->precedence;
+            }
             ogs_list_init(&qos_flow->pf_to_add_list);
 
             for (j = 0; j < pcc_rule->num_of_flow; j++) {
@@ -645,7 +673,8 @@ void smf_qos_flow_binding(smf_sess_t *sess)
                  * duplicated flows are not added
                  */
                 if (smf_pf_find_by_flow(
-                    qos_flow, flow->direction, flow->description) != NULL) {
+                    qos_flow, flow->direction, flow->description,
+                    flow->tos_traffic_class_presence, flow->tos_traffic_class) != NULL) {
                     continue;
                 }
 
@@ -684,6 +713,8 @@ void smf_qos_flow_binding(smf_sess_t *sess)
  */
                 if (flow->direction == OGS_FLOW_UPLINK_ONLY)
                     ogs_ipfw_rule_swap(&pf->ipfw_rule);
+                pf->ipfw_rule.tos_traffic_class_presence = flow->tos_traffic_class_presence;
+                pf->ipfw_rule.tos_traffic_class = flow->tos_traffic_class;
 
                 if (rv != OGS_OK) {
                     ogs_error("Invalid Flow-Description[%s]",
@@ -722,7 +753,8 @@ void smf_qos_flow_binding(smf_sess_t *sess)
                 pfcp_flags |= OGS_PFCP_MODIFY_NETWORK_REQUESTED;
 
                 if (ogs_list_count(&qos_flow->pf_to_add_list) > 0) {
-                    pfcp_flags |= OGS_PFCP_MODIFY_TFT_ADD;
+                    pfcp_flags |= replace_filters ?
+                        OGS_PFCP_MODIFY_TFT_REPLACE : OGS_PFCP_MODIFY_TFT_ADD;
                     smf_bearer_tft_update(qos_flow);
                 }
                 if (qos_presence == true) {
@@ -754,6 +786,18 @@ void smf_qos_flow_binding(smf_sess_t *sess)
         }
     }
 
+    /* One NAS operation code is shared by this batch: when replacing,
+     * include every current filter for all affected flows. */
+    if (pfcp_flags & OGS_PFCP_MODIFY_TFT_REPLACE) {
+        smf_bearer_t *flow;
+        smf_pf_t *pf;
+        pfcp_flags &= ~OGS_PFCP_MODIFY_TFT_ADD;
+        ogs_list_for_each_entry(&sess->qos_flow_to_modify_list, flow, to_modify_node) {
+            ogs_list_init(&flow->pf_to_add_list);
+            ogs_list_for_each(&flow->pf_list, pf)
+                ogs_list_add(&flow->pf_to_add_list, &pf->to_add_node);
+        }
+    }
     check = pfcp_flags & (OGS_PFCP_MODIFY_CREATE|OGS_PFCP_MODIFY_REMOVE);
     if (check != 0 &&
         check != OGS_PFCP_MODIFY_CREATE && check != OGS_PFCP_MODIFY_REMOVE) {

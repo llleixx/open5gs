@@ -26,12 +26,13 @@ testunit_unit_sources = files('''
     security-test.c
     nrf-discovery-test.c
     crash-test.c
+    dscp-test.c
 '''.split())
 
 testunit_unit_exe = executable('unit',
     sources : testunit_unit_sources,
     c_args : [testunit_core_cc_flags, sbi_cc_flags],
-    dependencies : [libs1ap_dep,
+    dependencies : [libnas_5gs_dep, libpfcp_dep, libs1ap_dep,
                     libgtp_dep,
                     libngap_dep,
                     libnas_eps_dep,

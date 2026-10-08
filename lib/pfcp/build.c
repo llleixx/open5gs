@@ -335,6 +335,10 @@ void ogs_pfcp_build_create_pdr(
                     strlen(pdr->flow[j].description);
             pfcp_sdf_filter[j].flow_description = pdr->flow[j].description;
         }
+        if (pdr->flow[j].ttc) {
+            pfcp_sdf_filter[j].ttc = 1;
+            pfcp_sdf_filter[j].tos_traffic_class = pdr->flow[j].tos_traffic_class;
+        }
         if (pdr->flow[j].bid) {
             pfcp_sdf_filter[j].bid = 1;
             pfcp_sdf_filter[j].sdf_filter_id = pdr->flow[j].sdf_filter_id;
@@ -481,6 +485,10 @@ void ogs_pfcp_build_update_pdr(
                 pfcp_sdf_filter[j].flow_description_len =
                         strlen(pdr->flow[j].description);
                 pfcp_sdf_filter[j].flow_description = pdr->flow[j].description;
+            }
+            if (pdr->flow[j].ttc) {
+                pfcp_sdf_filter[j].ttc = 1;
+                pfcp_sdf_filter[j].tos_traffic_class = pdr->flow[j].tos_traffic_class;
             }
             if (pdr->flow[j].bid) {
                 pfcp_sdf_filter[j].bid = 1;
